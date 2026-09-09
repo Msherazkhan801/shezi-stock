@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
   Pill,
@@ -29,9 +30,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   showBranchSelector = true,
 }) => {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { activeIndustry, tenant, isSyncing, isOnline, triggerSync } = useAppStore();
   const { currentUser, logout, isImpersonating } = useAuthStore();
   const preset = INDUSTRY_PRESETS[activeIndustry];
+
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
+  const headerTopPadding = topInset > 0 ? topInset + 8 : 14;
 
   const getIndustryIcon = () => {
     switch (activeIndustry) {
@@ -51,7 +56,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: headerTopPadding }]}>
       {/* Super Admin Back to HQ Banner */}
       {currentUser?.role === 'super_admin' && (
         <View style={styles.adminBanner}>
@@ -137,7 +142,6 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#0F172A',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 12 : 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#1E293B',

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   LayoutDashboard,
@@ -30,15 +31,17 @@ export const BottomTabNavigator: React.FC = () => {
         tabBarStyle: {
           backgroundColor: '#0F172A',
           borderTopColor: '#1E293B',
-          height: 60,
-          paddingBottom: 8,
+          height: Platform.OS === 'android' ? 62 : 60,
+          paddingBottom: Platform.OS === 'android' ? 8 : 6,
           paddingTop: 6,
         },
         tabBarActiveTintColor: preset.accentColor,
         tabBarInactiveTintColor: '#64748B',
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '700',
+          letterSpacing: -0.2,
+          marginTop: 2,
         },
       }}
     >
@@ -46,7 +49,7 @@ export const BottomTabNavigator: React.FC = () => {
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Dashboard',
+          tabBarLabel: 'Home',
           tabBarIcon: ({ color, size }) => <LayoutDashboard size={20} color={color} />,
         }}
       />
@@ -62,7 +65,7 @@ export const BottomTabNavigator: React.FC = () => {
         name="Inventory"
         component={InventoryScreen}
         options={{
-          tabBarLabel: 'Inventory',
+          tabBarLabel: 'Stock',
           tabBarIcon: ({ color, size }) => <Boxes size={20} color={color} />,
         }}
       />
@@ -78,7 +81,7 @@ export const BottomTabNavigator: React.FC = () => {
         name="Analytics"
         component={AnalyticsScreen}
         options={{
-          tabBarLabel: 'Analytics',
+          tabBarLabel: 'Stats',
           tabBarIcon: ({ color, size }) => <TrendingUp size={20} color={color} />,
         }}
       />

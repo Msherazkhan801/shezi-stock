@@ -5,12 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
   Platform,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
   ShieldCheck,
@@ -41,6 +42,7 @@ import { INDUSTRY_PRESETS } from '../config/industryPresets';
 
 export const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const {
     currentUser,
     users,
@@ -53,79 +55,83 @@ export const AdminDashboardScreen: React.FC = () => {
     clearAllDemoData,
   } = useAuthStore();
 
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
+  const adminHeaderPaddingTop = topInset > 0 ? topInset + 8 : 12;
+
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'active' | 'suspended'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newOwnerName, setNewOwnerName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('password');
+  const [newPassword, setNewPassword] = useState('');
   const [newStoreName, setNewStoreName] = useState('');
   const [newIndustry, setNewIndustry] = useState<IndustryType>('pharmacy');
+  const [newPhone, setNewPhone] = useState('');
+  const [newAddress, setNewAddress] = useState('');
 
-  const nonAdminUsers = users.filter((u) => u.role !== 'super_admin');
-  const pendingUsers = nonAdminUsers.filter((u) => u.status === 'pending');
-  const activeUsers = nonAdminUsers.filter((u) => u.status === 'active');
-  const suspendedUsers = nonAdminUsers.filter((u) => u.status === 'suspended');
+  const [inspectUser, setInspectUser] = useState<any | null>(null);
 
-  const filteredUsers = nonAdminUsers.filter((u) => {
-    // Search query filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = u.name?.toLowerCase().includes(q);
-      const matchStore = u.storeName?.toLowerCase().includes(q);
-      const matchEmail = u.email?.toLowerCase().includes(q);
-      const matchIndustry = u.industry?.toLowerCase().includes(q);
-      if (!matchName && !matchStore && !matchEmail && !matchIndustry) {
-        return false;
-      }
-    }
-
-    // Status filter
-    if (activeFilter === 'pending') return u.status === 'pending';
-    if (activeFilter === 'active') return u.status === 'active';
-    if (activeFilter === 'suspended') return u.status === 'suspended';
-    return true;
+  const filteredUsers = users.filter((u) => {
+    const matchesFilter = activeFilter === 'all' ? true : u.status === activeFilter;
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.storeName.toLowerCase().includes(q) ||
+      u.industry.toLowerCase().includes(q);
+    return matchesFilter && matchesSearch;
   });
 
+  const totalStores = users.filter((u) => u.role === 'store_admin').length;
+  const activeStores = users.filter((u) => u.status === 'active' && u.role === 'store_admin').length;
+  const pendingStores = users.filter((u) => u.status === 'pending' && u.role === 'store_admin').length;
+  const suspendedStores = users.filter((u) => u.status === 'suspended' && u.role === 'store_admin').length;
+
   const handleCreateStore = () => {
-    if (!newOwnerName.trim() || !newEmail.trim() || !newStoreName.trim()) {
-      Alert.alert('Incomplete Information', 'Please provide Owner Name, Login Email, and Business Store Name.');
+    if (!newOwnerName.trim() || !newEmail.trim() || !newPassword.trim() || !newStoreName.trim()) {
+      Alert.alert('Incomplete Form', 'Please fill in owner name, email, password, and business name.');
       return;
     }
 
-    createStoreAccountAsAdmin({
+    const res = createStoreAccountAsAdmin({
       name: newOwnerName.trim(),
       email: newEmail.trim().toLowerCase(),
-      password: newPassword,
+      password: newPassword.trim(),
       storeName: newStoreName.trim(),
       industry: newIndustry,
+      phone: newPhone.trim(),
+      address: newAddress.trim(),
     });
 
-    setNewOwnerName('');
-    setNewEmail('');
-    setNewStoreName('');
-    setShowCreateModal(false);
-    Alert.alert('Store Provisioned', `New ${newIndustry.toUpperCase()} store has been created with an active license.`);
+    if (res.success) {
+      Alert.alert(
+        'Store Provisioned Successfully',
+        `Store "${newStoreName}" has been provisioned under ${newIndustry.toUpperCase()} edition. The owner can now sign in immediately with credentials:\n\nEmail: ${newEmail}\nPassword: ${newPassword}`
+      );
+      setShowCreateModal(false);
+      setNewOwnerName('');
+      setNewEmail('');
+      setNewPassword('');
+      setNewStoreName('');
+      setNewPhone('');
+      setNewAddress('');
+    } else {
+      Alert.alert('Provisioning Failed', res.error || 'Could not provision store.');
+    }
   };
 
-  const handleInspectStore = (tenantId: string) => {
-    switchTenantAsAdmin(tenantId);
-    navigation.navigate('MainTabs');
-  };
-
-  const handleActivateUser = (user: any) => {
-    activateUserAccount(user.id);
+  const handleSwitchToTenant = (user: any) => {
+    switchTenantAsAdmin(user.tenantId, user.industry, user.storeName, user.name);
     Alert.alert(
-      'License Activated',
-      `${user.storeName} (${user.email}) has been granted active access. The owner can now sign in.`
-    );
-  };
-
-  const handleSuspendUser = (user: any) => {
-    suspendUserAccount(user.id);
-    Alert.alert(
-      'License Suspended',
-      `${user.storeName} access has been temporarily blocked.`
+      'Session Impersonated',
+      `Switched live session to "${user.storeName}" (${user.industry.toUpperCase()} edition). Opening store interface...`,
+      [
+        {
+          text: 'Open Store View',
+          onPress: () => navigation.navigate('MainTabs'),
+        },
+      ]
     );
   };
 
@@ -163,9 +169,9 @@ export const AdminDashboardScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       {/* Top Enterprise Admin Bar */}
-      <View style={styles.adminHeader}>
+      <View style={[styles.adminHeader, { paddingTop: adminHeaderPaddingTop }]}>
         <View style={styles.headerInner}>
           <View style={styles.headerLeft}>
             <View style={styles.adminBadge}>
@@ -771,7 +777,7 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
