@@ -16,6 +16,7 @@ export interface UserAccount {
   industry: IndustryType;
   phone?: string;
   avatar?: string;
+  trxId?: string;
   createdAt: string;
   activatedAt?: string;
 }

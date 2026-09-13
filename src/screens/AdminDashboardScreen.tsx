@@ -33,6 +33,9 @@ import {
   Mail,
   User,
   Layers,
+  Receipt,
+  Copy,
+  QrCode,
 } from 'lucide-react-native';
 import { useAuthStore } from '../store/useAuthStore';
 import { StatCard } from '../components/common/StatCard';
@@ -71,7 +74,17 @@ export const AdminDashboardScreen: React.FC = () => {
 
   const [inspectUser, setInspectUser] = useState<any | null>(null);
 
-  const filteredUsers = users.filter((u) => {
+  const nonAdminUsers = users.filter((u) => u.role !== 'super_admin');
+  const pendingUsers = nonAdminUsers.filter((u) => u.status === 'pending');
+  const activeUsers = nonAdminUsers.filter((u) => u.status === 'active');
+  const suspendedUsers = nonAdminUsers.filter((u) => u.status === 'suspended');
+
+  const totalStores = nonAdminUsers.length;
+  const activeStores = activeUsers.length;
+  const pendingStores = pendingUsers.length;
+  const suspendedStores = suspendedUsers.length;
+
+  const filteredUsers = nonAdminUsers.filter((u) => {
     const matchesFilter = activeFilter === 'all' ? true : u.status === activeFilter;
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
@@ -83,10 +96,27 @@ export const AdminDashboardScreen: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
-  const totalStores = users.filter((u) => u.role === 'store_admin').length;
-  const activeStores = users.filter((u) => u.status === 'active' && u.role === 'store_admin').length;
-  const pendingStores = users.filter((u) => u.status === 'pending' && u.role === 'store_admin').length;
-  const suspendedStores = users.filter((u) => u.status === 'suspended' && u.role === 'store_admin').length;
+  const handleActivateUser = (user: any) => {
+    activateUserAccount(user.id);
+  };
+
+  const handleSuspendUser = (user: any) => {
+    suspendUserAccount(user.id);
+  };
+
+  const handleInspectStore = (tenantId: string) => {
+    switchTenantAsAdmin(tenantId);
+    Alert.alert(
+      'Session Impersonated',
+      'Opening live store dashboard...',
+      [
+        {
+          text: 'Open Store View',
+          onPress: () => navigation.navigate('MainTabs'),
+        },
+      ]
+    );
+  };
 
   const handleCreateStore = () => {
     if (!newOwnerName.trim() || !newEmail.trim() || !newPassword.trim() || !newStoreName.trim()) {
@@ -100,11 +130,9 @@ export const AdminDashboardScreen: React.FC = () => {
       password: newPassword.trim(),
       storeName: newStoreName.trim(),
       industry: newIndustry,
-      phone: newPhone.trim(),
-      address: newAddress.trim(),
     });
 
-    if (res.success) {
+    if (res && res.id) {
       Alert.alert(
         'Store Provisioned Successfully',
         `Store "${newStoreName}" has been provisioned under ${newIndustry.toUpperCase()} edition. The owner can now sign in immediately with credentials:\n\nEmail: ${newEmail}\nPassword: ${newPassword}`
@@ -117,12 +145,12 @@ export const AdminDashboardScreen: React.FC = () => {
       setNewPhone('');
       setNewAddress('');
     } else {
-      Alert.alert('Provisioning Failed', res.error || 'Could not provision store.');
+      Alert.alert('Provisioning Failed', 'Could not provision store.');
     }
   };
 
   const handleSwitchToTenant = (user: any) => {
-    switchTenantAsAdmin(user.tenantId, user.industry, user.storeName, user.name);
+    switchTenantAsAdmin(user.tenantId);
     Alert.alert(
       'Session Impersonated',
       `Switched live session to "${user.storeName}" (${user.industry.toUpperCase()} edition). Opening store interface...`,
@@ -499,6 +527,43 @@ export const AdminDashboardScreen: React.FC = () => {
                           </Text>
                         </View>
                       </View>
+
+                      {/* Payment TRX Verification Box */}
+                      {u.trxId ? (
+                        <View style={styles.trxVerificationBox}>
+                          <View style={styles.trxHeaderRow}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Receipt size={14} color="#FBBF24" />
+                              <Text style={styles.trxLabel}>SUBMITTED PAYMENT TRX ID</Text>
+                            </View>
+                            <Badge label="PAYMENT SUBMITTED" variant="warning" size="small" />
+                          </View>
+                          <View style={styles.trxContentRow}>
+                            <Text style={styles.trxCodeText} selectable numberOfLines={1}>
+                              {u.trxId}
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.copyTrxBtn}
+                              onPress={() => {
+                                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                  navigator.clipboard.writeText(u.trxId || '');
+                                }
+                                Alert.alert('TRX Copied', `Transaction ID "${u.trxId || ''}" copied to clipboard.`);
+                              }}
+                              activeOpacity={0.75}
+                            >
+                              <Copy size={12} color="#FBBF24" />
+                              <Text style={styles.copyTrxBtnText}>Copy TRX</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : isPending ? (
+                        <View style={styles.trxMissingBox}>
+                          <Text style={styles.trxMissingText}>
+                            ℹ️ No TRX record (Admin created / Direct activation)
+                          </Text>
+                        </View>
+                      ) : null}
 
                       {/* Store Actions Toolbar */}
                       <View style={styles.cardActionsRow}>
@@ -1200,6 +1265,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F8FAFC',
     marginTop: 2,
+  },
+  trxVerificationBox: {
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#F59E0B60',
+    gap: 8,
+  },
+  trxHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trxLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FBBF24',
+    letterSpacing: 0.5,
+  },
+  trxContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1E293B',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+    gap: 8,
+  },
+  trxCodeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  copyTrxBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F59E0B20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  copyTrxBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FBBF24',
+  },
+  trxMissingBox: {
+    backgroundColor: '#0F172A60',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#33415540',
+  },
+  trxMissingText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontStyle: 'italic',
   },
   cardActionsRow: {
     flexDirection: 'row',

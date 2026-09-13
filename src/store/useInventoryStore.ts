@@ -70,7 +70,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       id: `prod-${Date.now()}`,
       tenantId: productData.tenantId || currentTenant?.id || 'tenant-admin-hq',
       branchId: productData.branchId || currentTenant?.activeBranchId || 'branch-hq-01',
-      industry: (productData.industry || currentIndustry || 'pharmacy').toLowerCase().trim(),
+      industry: ((productData.industry || currentIndustry || 'pharmacy').toLowerCase().trim()) as IndustryType,
       isActive: productData.isActive !== false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -91,7 +91,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
           const updated: Product = {
             ...p,
             ...updates,
-            industry: updates.industry ? (updates.industry as string).toLowerCase().trim() : p.industry,
+            industry: updates.industry ? (((updates.industry as string).toLowerCase().trim()) as IndustryType) : p.industry,
             updatedAt: new Date().toISOString(),
           };
           FirestoreService.saveProduct(p.tenantId, p.branchId, updated);

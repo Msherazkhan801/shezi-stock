@@ -67,6 +67,7 @@ interface AuthState {
     password?: string;
     storeName: string;
     industry: IndustryType;
+    trxId?: string;
   }) => { success: boolean; user?: UserAccount; isPending?: boolean; error?: string; message?: string };
   logout: () => void;
   createStoreAccountAsAdmin: (params: {
@@ -143,7 +144,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { success: true, status: user.status };
   },
 
-  signup: ({ name, email, password, storeName, industry }) => {
+  signup: ({ name, email, password, storeName, industry, trxId }) => {
     const cleanEmail = email.trim().toLowerCase();
     const existing = get().users.find((u) => u.email.toLowerCase() === cleanEmail);
     if (existing) {
@@ -191,6 +192,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       tenantId,
       storeName: storeName.trim(),
       industry,
+      trxId: trxId ? trxId.trim() : undefined,
       createdAt: new Date().toISOString(),
     };
 
